@@ -30,7 +30,7 @@ if '%errorlevel%' NEQ '0' (
 :--------------------------------------    
 
 powershell -Executionpolicy Bypass -NoProfile -Command "Install-Module -Name AudioDeviceCmdlets"
-
+cls
 echo Please set up your Audio devices, how you want to keep them, then continue.
 pause
 cls

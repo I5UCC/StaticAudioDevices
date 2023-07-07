@@ -29,6 +29,8 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 :--------------------------------------    
 
+echo Uninstalling AudioDeviceCmdlets Module
+powershell -Executionpolicy Bypass -NoProfile -Command "Uninstall-Module -Name AudioDeviceCmdlets"
 echo Disabling Audit process Tracking ...
 auditpol /set /category:"Detailed Tracking" /success:disable
 gpupdate /force
