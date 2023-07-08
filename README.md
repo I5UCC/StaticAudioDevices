@@ -9,7 +9,8 @@ Sets Windows Audio devices every time a new device connects, preventing them fro
 - Run `install.bat` with admin priviliges to install, you dont have to keep the files afterwards.
 
 # How it works
-`install.bat` installs [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets), activates [Audit process tracking](https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/basic-audit-process-tracking) and creates a Scheduled Task with a custom filter to automatically run when a new devices connects to the computer, it also runs once every startup.
+`install.bat` installs [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets) which allows controlling Audio devices over the command line. <br>
+It activates [Audit process tracking](https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/basic-audit-process-tracking) so that it can create a Scheduled Task with a custom filter that automatically triggers when a new devices connects to the computer, it also runs once every startup.
 
 # Credit
 - [AudioDeviceCmdlets](https://github.com/frgnca/AudioDeviceCmdlets)
