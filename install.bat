@@ -45,6 +45,7 @@ echo Recording Communication Device: %ID3%
 for /f "delims=" %%a in (' powershell "Get-AudioDevice -Recording | Select-Object -ExpandProperty ID" ') do set "ID4=%%a"
 echo Recording Device: %ID4%
 
+del /q /f task.xml
 echo Creating task.xml ...
 
 powershell -Executionpolicy Bypass -NoProfile -Command "(gc SetAudioDevices.xml) -replace 'PATH1', '%ID1%' -replace 'PATH2', '%ID2%' -replace 'PATH3', '%ID3%' -replace 'PATH4', '%ID4%' | Out-File task.xml"
@@ -54,6 +55,5 @@ gpupdate /force
 echo Creating Task ...
 schtasks /delete /tn SetAudioDevices /f
 schtasks /create /xml task.xml /tn SetAudioDevices
-del /q /f task.xml
 echo Done!
 timeout /T 10
