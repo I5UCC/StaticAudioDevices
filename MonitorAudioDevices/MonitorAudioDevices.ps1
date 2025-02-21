@@ -1,5 +1,11 @@
+# Set the log file path (update as needed)
+$LogFile = "$PSScriptRoot\MonitorAudioDevices.log"
+
+# Start transcript to capture all output
+Start-Transcript -Path $LogFile -Append
+
 # Path to store the saved default devices
-$DefaultsFile = ".\default_audio.json"
+$DefaultsFile = "$PSScriptRoot\default_audio.json"
 
 # Function: Retrieve current default audio devices for both Playback/Recording and their Communication counterparts.
 function Get-CurrentDefaults {
@@ -41,6 +47,7 @@ if (-Not (Test-Path $DefaultsFile)) {
 } else {
     Write-Host "Loading saved default audio devices..."
 }
+
 # Load the saved defaults.
 $savedDefaults = Get-Content $DefaultsFile | ConvertFrom-Json
 
@@ -77,3 +84,6 @@ while ($true) {
         Set-AudioDevice -ID $savedDefaults.RecordingCommunication.ID -CommunicationOnly
     }
 }
+
+# Stop transcript (this line may never be reached due to the infinite loop)
+Stop-Transcript
