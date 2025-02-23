@@ -51,11 +51,11 @@ if (-Not (Test-Path $DefaultsFile)) {
 # Load the saved defaults.
 $savedDefaults = Get-Content $DefaultsFile | ConvertFrom-Json
 
-Write-Host "Monitoring audio devices. Press Ctrl+C to exit."
+Write-Host "Start monitoring audio devices..."
 
-# Monitoring loop: every 5 seconds, check if any default has changed.
+# Monitoring loop: every 3 seconds, check if any default has changed.
 while ($true) {
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 3
     $current = Get-CurrentDefaults
 
     # Check Playback (default device)
@@ -85,5 +85,4 @@ while ($true) {
     }
 }
 
-# Stop transcript (this line may never be reached due to the infinite loop)
 Stop-Transcript
