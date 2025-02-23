@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param (
-    [int]$PollingInterval = 5,
+    [int]$PollingInterval = 15,
     [switch]$Force
 )
 
