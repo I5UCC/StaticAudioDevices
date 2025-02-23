@@ -1,88 +1,139 @@
-# Set the log file path (update as needed)
-$LogFile = "$PSScriptRoot\MonitorAudioDevices.log"
+[CmdletBinding()]
+param (
+    [int]$PollingInterval = 5,
+    [switch]$Force
+)
 
-# Start transcript to capture all output
+# Script termination flag
+$script:continue = $true
+
+# Handle script termination gracefully
+function Handle-Exit {
+    $script:continue = $false
+    Write-Host "`nStopping audio device monitoring..."
+    Stop-Transcript
+    exit
+}
+
+# Register exit handler
+$null = Register-EngineEvent -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -Action { Handle-Exit }
+try {
+    # Trap Ctrl+C
+    [Console]::TreatControlCAsInput = $true
+} catch {
+    Write-Warning "Could not set up Ctrl+C handler. Script will still work but may not exit gracefully."
+}
+
+# Determine a permanent folder in the AppData directory
+$PermanentFolder = Join-Path $env:APPDATA "StaticAudioDevices"
+$LogFile = Join-Path $PermanentFolder "log.log"
+$DefaultsFile = Join-Path $PermanentFolder "default_audio.json"
+
+# Ensure directory exists
+if (-not (Test-Path $PermanentFolder)) {
+    New-Item -ItemType Directory -Path $PermanentFolder -ErrorAction Stop | Out-Null
+}
+
+# Import required module
+try {
+    Import-Module AudioDeviceCmdlets -ErrorAction Stop
+} catch {
+    Write-Error "Failed to import AudioDeviceCmdlets module. Please ensure it's installed."
+    exit 1
+}
+
+# Start transcript with rotation
+if (Test-Path $LogFile) {
+    $logSize = (Get-Item $LogFile).Length
+    if ($logSize -gt 1MB) {
+        Move-Item -Path $LogFile -Destination "$LogFile.old" -Force
+    }
+}
 Start-Transcript -Path $LogFile -Append
 
-# Path to store the saved default devices
-$DefaultsFile = "$PSScriptRoot\default_audio.json"
-
-# Function: Retrieve current default audio devices for both Playback/Recording and their Communication counterparts.
 function Get-CurrentDefaults {
-    return @{
-        Playback               = Get-AudioDevice -Playback
-        PlaybackCommunication  = Get-AudioDevice -PlaybackCommunication
-        Recording              = Get-AudioDevice -Recording
-        RecordingCommunication = Get-AudioDevice -RecordingCommunication
+    try {
+        return @{
+            Playback               = Get-AudioDevice -Playback
+            PlaybackCommunication  = Get-AudioDevice -PlaybackCommunication
+            Recording             = Get-AudioDevice -Recording
+            RecordingCommunication = Get-AudioDevice -RecordingCommunication
+        }
+    } catch {
+        Write-Error "Failed to get current audio devices: $_"
+        return $null
     }
 }
 
-# If the defaults file does not exist, capture and save the current defaults.
-if (-Not (Test-Path $DefaultsFile)) {
-    Write-Host "Determining and saving default audio devices for the first time..."
-    $currentDefaults = Get-CurrentDefaults
-
-    # Save only the unique ID and Name for easier comparison.
+function Save-DefaultDevices {
+    param ($CurrentDefaults)
+    
     $defaultsToSave = @{
         Playback = @{
-            ID   = $currentDefaults.Playback.ID
-            Name = $currentDefaults.Playback.Name
+            ID   = $CurrentDefaults.Playback.ID
+            Name = $CurrentDefaults.Playback.Name
         }
         PlaybackCommunication = @{
-            ID   = $currentDefaults.PlaybackCommunication.ID
-            Name = $currentDefaults.PlaybackCommunication.Name
+            ID   = $CurrentDefaults.PlaybackCommunication.ID
+            Name = $CurrentDefaults.PlaybackCommunication.Name
         }
         Recording = @{
-            ID   = $currentDefaults.Recording.ID
-            Name = $currentDefaults.Recording.Name
+            ID   = $CurrentDefaults.Recording.ID
+            Name = $CurrentDefaults.Recording.Name
         }
         RecordingCommunication = @{
-            ID   = $currentDefaults.RecordingCommunication.ID
-            Name = $currentDefaults.RecordingCommunication.Name
+            ID   = $CurrentDefaults.RecordingCommunication.ID
+            Name = $CurrentDefaults.RecordingCommunication.Name
         }
     }
 
     $defaultsToSave | ConvertTo-Json -Depth 3 | Out-File $DefaultsFile -Encoding UTF8
-    Write-Host "Saved defaults:" (ConvertTo-Json $defaultsToSave -Depth 3)
-} else {
-    Write-Host "Loading saved default audio devices..."
+    return $defaultsToSave
 }
 
-# Load the saved defaults.
-$savedDefaults = Get-Content $DefaultsFile | ConvertFrom-Json
+# Initialize or load defaults
+if (-not (Test-Path $DefaultsFile) -or $Force) {
+    Write-Host "Determining and saving default audio devices..."
+    $currentDefaults = Get-CurrentDefaults
+    if ($null -eq $currentDefaults) { exit 1 }
+    
+    $savedDefaults = Save-DefaultDevices $currentDefaults
+    Write-Host "Saved defaults:" (ConvertTo-Json $savedDefaults -Depth 3)
+} else {
+    Write-Host "Loading saved default audio devices..."
+    try {
+        $savedDefaults = Get-Content $DefaultsFile | ConvertFrom-Json
+    } catch {
+        Write-Error "Failed to load defaults file: $_"
+        exit 1
+    }
+}
 
 Write-Host "Start monitoring audio devices..."
 
-# Monitoring loop: every 3 seconds, check if any default has changed.
-while ($true) {
-    Start-Sleep -Seconds 3
-    $current = Get-CurrentDefaults
+# Main monitoring loop
+while ($script:continue) {
+    try {
+        $current = Get-CurrentDefaults
+        if ($null -eq $current) { continue }
 
-    # Check Playback (default device)
-    if ($current.Playback.ID -ne $savedDefaults.Playback.ID) {
-        Write-Host "Playback device changed from '$($savedDefaults.Playback.Name)' to '$($current.Playback.Name)'. Restoring default..."
-        # Restore only the default device (not the communication one)
-        Set-AudioDevice -ID $savedDefaults.Playback.ID -DefaultOnly
-    }
+        $deviceChecks = @{
+            'Playback' = @{ Default = $true; Communication = $false }
+            'PlaybackCommunication' = @{ Default = $false; Communication = $true }
+            'Recording' = @{ Default = $true; Communication = $false }
+            'RecordingCommunication' = @{ Default = $false; Communication = $true }
+        }
 
-    # Check Playback Communication device
-    if ($current.PlaybackCommunication.ID -ne $savedDefaults.PlaybackCommunication.ID) {
-        Write-Host "Playback Communication device changed from '$($savedDefaults.PlaybackCommunication.Name)' to '$($current.PlaybackCommunication.Name)'. Restoring default..."
-        # Restore the communication device only.
-        Set-AudioDevice -ID $savedDefaults.PlaybackCommunication.ID -CommunicationOnly
-    }
+        foreach ($device in $deviceChecks.Keys) {
+            if ($current.$device.ID -ne $savedDefaults.$device.ID) {
+                Write-Host "$device device changed from '$($savedDefaults.$device.Name)' to '$($current.$device.Name)'. Restoring default..."
+                Set-AudioDevice -ID $savedDefaults.$device.ID -DefaultOnly:$deviceChecks[$device].Default -CommunicationOnly:$deviceChecks[$device].Communication
+            }
+        }
 
-    # Check Recording (default device)
-    if ($current.Recording.ID -ne $savedDefaults.Recording.ID) {
-        Write-Host "Recording device changed from '$($savedDefaults.Recording.Name)' to '$($current.Recording.Name)'. Restoring default..."
-        Set-AudioDevice -ID $savedDefaults.Recording.ID -DefaultOnly
-    }
-
-    # Check Recording Communication device
-    if ($current.RecordingCommunication.ID -ne $savedDefaults.RecordingCommunication.ID) {
-        Write-Host "Recording Communication device changed from '$($savedDefaults.RecordingCommunication.Name)' to '$($current.RecordingCommunication.Name)'. Restoring default..."
-        Set-AudioDevice -ID $savedDefaults.RecordingCommunication.ID -CommunicationOnly
+        Start-Sleep -Seconds $PollingInterval
+    } catch {
+        Write-Error "Error in main loop: $_"
+        Start-Sleep -Seconds 1
     }
 }
-
-Stop-Transcript
