@@ -18,8 +18,9 @@
         Lightweight = $true
         DisableQuickEdit = $true
         HighDPISupport = $false
-        Platform = 'x64'
-        RuntimeIdentifier = 'win-x64'
+        Platform = 'x86'
+        RuntimeIdentifier = 'win-x86'
+        PowerShellVersion = 'Windows PowerShell'
     }
     Bundle = @{
         Enabled = $true

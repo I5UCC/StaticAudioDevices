@@ -1,28 +1,12 @@
 [CmdletBinding()]
 param (
-    [int]$PollingInterval = 15,
+    [int]$PollingInterval = 5,
     [switch]$Force
 )
 
-# Script termination flag
-$script:continue = $true
-
-# Handle script termination gracefully
-function Handle-Exit {
-    $script:continue = $false
-    Write-Host "`nStopping audio device monitoring..."
-    Stop-Transcript
-    exit
-}
-
-# Register exit handler
-$null = Register-EngineEvent -SourceIdentifier ([System.Management.Automation.PsEngineEvent]::Exiting) -Action { Handle-Exit }
-try {
-    # Trap Ctrl+C
-    [Console]::TreatControlCAsInput = $true
-} catch {
-    Write-Warning "Could not set up Ctrl+C handler. Script will still work but may not exit gracefully."
-}
+$process = [System.Diagnostics.Process]::GetCurrentProcess()
+$process.ProcessorAffinity = [System.IntPtr]::op_Explicit(1)
+$process.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::BelowNormal
 
 # Determine a permanent folder in the AppData directory
 $PermanentFolder = Join-Path $env:APPDATA "StaticAudioDevices"
@@ -105,24 +89,25 @@ if (-not (Test-Path $DefaultsFile) -or $Force) {
         $savedDefaults = Get-Content $DefaultsFile | ConvertFrom-Json
     } catch {
         Write-Error "Failed to load defaults file: $_"
+        Stop-Transcript
         exit 1
     }
 }
 
 Write-Host "Start monitoring audio devices..."
 
+$deviceChecks = @{
+    'Playback' = @{ Default = $true; Communication = $false }
+    'PlaybackCommunication' = @{ Default = $false; Communication = $true }
+    'Recording' = @{ Default = $true; Communication = $false }
+    'RecordingCommunication' = @{ Default = $false; Communication = $true }
+}
+
 # Main monitoring loop
-while ($script:continue) {
+while ($true) {
     try {
         $current = Get-CurrentDefaults
         if ($null -eq $current) { continue }
-
-        $deviceChecks = @{
-            'Playback' = @{ Default = $true; Communication = $false }
-            'PlaybackCommunication' = @{ Default = $false; Communication = $true }
-            'Recording' = @{ Default = $true; Communication = $false }
-            'RecordingCommunication' = @{ Default = $false; Communication = $true }
-        }
 
         foreach ($device in $deviceChecks.Keys) {
             if ($current.$device.ID -ne $savedDefaults.$device.ID) {
@@ -135,5 +120,7 @@ while ($script:continue) {
     } catch {
         Write-Error "Error in main loop: $_"
         Start-Sleep -Seconds 1
+        Stop-Transcript
+        exit 2
     }
 }
