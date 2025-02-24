@@ -33,12 +33,12 @@ Adjust `Interval` in the `config.json` file. In seconds.
   - ole32.lib
   - mmdevapi.lib
 
-### Using Visual Studio 2022
+## Using Visual Studio 2022
 1. Open `StaticAudioDevices.sln` in Visual Studio 2022
 2. Select build configuration (Debug/Release)
 3. Build (Ctrl+Shift+B)
 
-### Using Developer Command Prompt
+## Using Developer Command Prompt
 1. Navigate to project directory
 2. run `msbuild StaticAudioDevices.sln /p:Configuration=Release /p:Platform=x64`
 
