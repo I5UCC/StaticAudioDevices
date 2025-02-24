@@ -9,6 +9,7 @@
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <sstream>
+#include <shellapi.h>
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "mmdevapi.lib")
@@ -307,17 +308,22 @@ public:
     }
 };
 
-int main(int argc, char* argv[]) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     int pollingInterval = 3;
     bool force = false;
 
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "-PollingInterval" && i + 1 < argc) {
-            pollingInterval = std::stoi(argv[++i]);
+    int argc;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argv) {
+        for (int i = 1; i < argc; ++i) {
+            if (wcscmp(argv[i], L"-PollingInterval") == 0 && i + 1 < argc) {
+                pollingInterval = _wtoi(argv[++i]);
+            }
+            else if (wcscmp(argv[i], L"-Force") == 0) {
+                force = true;
+            }
         }
-        else if (std::string(argv[i]) == "-Force") {
-            force = true;
-        }
+        LocalFree(argv);
     }
 
     AudioMonitor monitor(pollingInterval, force);
