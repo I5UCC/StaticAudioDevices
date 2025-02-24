@@ -31,8 +31,7 @@ struct DECLSPEC_UUID("F8679F50-850A-41CF-9C72-430F290290C8") IPolicyConfig : IUn
     virtual HRESULT STDMETHODCALLTYPE SetEndpointVisibility(LPCWSTR, BOOL) = 0;
 };
 
-const CLSID CLSID_PolicyConfigClient =
-{ 0x870af99c, 0x171d, 0x4f9e, {0xaf, 0x0d, 0xe6, 0x3d, 0xf4, 0x0c, 0x2b, 0xc9} };
+const CLSID CLSID_PolicyConfigClient = { 0x870af99c, 0x171d, 0x4f9e, {0xaf, 0x0d, 0xe6, 0x3d, 0xf4, 0x0c, 0x2b, 0xc9} };
 
 struct AudioDevice {
     std::string ID;
