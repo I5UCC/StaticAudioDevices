@@ -151,7 +151,7 @@ private:
     bool force;
     std::string permanentFolder;
     std::string logFile;
-    std::string defaultsFile;
+    std::string configFile;
     json savedDefaults;
     std::ofstream logStream;
 
@@ -167,7 +167,7 @@ private:
         _dupenv_s(&appData, &len, "APPDATA");
         permanentFolder = std::string(appData) + "\\StaticAudioDevices";
         logFile = permanentFolder + "\\log.log";
-        defaultsFile = permanentFolder + "\\default_audio.json";
+        configFile = permanentFolder + "\\config.json";
         free(appData);
 
         DWORD attribs = GetFileAttributesA(permanentFolder.c_str());
@@ -213,6 +213,7 @@ private:
     json GetCurrentDefaults() {
         try {
             return {
+                {"Interval", 3},
                 {"Playback", {{"ID", GetAudioDevice(true, false).ID}, {"Name", GetAudioDevice(true, false).Name}}},
                 {"PlaybackCommunication", {{"ID", GetAudioDevice(true, true).ID}, {"Name", GetAudioDevice(true, true).Name}}},
                 {"Recording", {{"ID", GetAudioDevice(false, false).ID}, {"Name", GetAudioDevice(false, false).Name}}},
@@ -226,15 +227,14 @@ private:
     }
 
     void SaveDefaultDevices(const json& currentDefaults) {
-        std::ofstream out(defaultsFile);
+        std::ofstream out(configFile);
         out << currentDefaults.dump(4);
         out.close();
         savedDefaults = currentDefaults;
     }
 
 public:
-    AudioMonitor(int interval = 5, bool f = false) 
-        : pollingInterval(interval), force(f) {
+    AudioMonitor() {
         SetProcessPriority();
         InitializePaths();
         InitializeLogFile();
@@ -249,7 +249,7 @@ public:
     void Start() {
         log("Initializing audio device monitoring...");
 
-        std::ifstream check(defaultsFile);
+        std::ifstream check(configFile);
         if (!check.good() || force) {
             log("Determining and saving default audio devices...");
             json currentDefaults = GetCurrentDefaults();
@@ -263,10 +263,12 @@ public:
         else {
             log("Loading saved default audio devices...");
             check.close();
-            std::ifstream in(defaultsFile);
+            std::ifstream in(configFile);
             in >> savedDefaults;
             in.close();
         }
+
+		pollingInterval = savedDefaults["Interval"];
 
         log("Start monitoring audio devices...");
 
@@ -309,24 +311,7 @@ public:
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    int pollingInterval = 3;
-    bool force = false;
-
-    int argc;
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (argv) {
-        for (int i = 1; i < argc; ++i) {
-            if (wcscmp(argv[i], L"-PollingInterval") == 0 && i + 1 < argc) {
-                pollingInterval = _wtoi(argv[++i]);
-            }
-            else if (wcscmp(argv[i], L"-Force") == 0) {
-                force = true;
-            }
-        }
-        LocalFree(argv);
-    }
-
-    AudioMonitor monitor(pollingInterval, force);
+    AudioMonitor monitor;
     monitor.Start();
     return 0;
 }
