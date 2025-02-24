@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys_devpkey.h>
+#include <sstream>
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "mmdevapi.lib")
@@ -32,7 +33,6 @@ struct DECLSPEC_UUID("F8679F50-850A-41CF-9C72-430F290290C8") IPolicyConfig : IUn
 const CLSID CLSID_PolicyConfigClient =
 { 0x870af99c, 0x171d, 0x4f9e, {0xaf, 0x0d, 0xe6, 0x3d, 0xf4, 0x0c, 0x2b, 0xc9} };
 
-// Audio Device structure
 struct AudioDevice {
     std::string ID;
     std::string Name;
@@ -40,7 +40,6 @@ struct AudioDevice {
     AudioDevice() : ID(""), Name("") {}
 };
 
-// COM initialization helper
 class CoInitializeGuard {
 public:
     CoInitializeGuard() {
@@ -50,7 +49,6 @@ public:
     ~CoInitializeGuard() { CoUninitialize(); }
 };
 
-// Wide string to UTF-8 conversion (replacing CW2A)
 std::string WideToUTF8(LPCWSTR wideStr) {
     if (!wideStr) return "";
     int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
@@ -60,7 +58,6 @@ std::string WideToUTF8(LPCWSTR wideStr) {
     return result;
 }
 
-// Get Audio Device implementation
 AudioDevice GetAudioDevice(bool playback, bool communication) {
     AudioDevice dev;
     HRESULT hr;
@@ -107,7 +104,6 @@ AudioDevice GetAudioDevice(bool playback, bool communication) {
     return dev;
 }
 
-// Set Audio Device implementation
 bool SetAudioDevice(const std::string& id, bool defaultOnly, bool communicationOnly) {
     HRESULT hr;
     IMMDeviceEnumerator* pEnumerator = nullptr;
@@ -156,6 +152,7 @@ private:
     std::string logFile;
     std::string defaultsFile;
     json savedDefaults;
+    std::ofstream logStream;
 
     void SetProcessPriority() {
         HANDLE hProcess = GetCurrentProcess();
@@ -187,6 +184,31 @@ private:
         }
     }
 
+    void InitializeLogFile() {
+        RotateLog();
+        logStream.open(logFile, std::ios::app);
+        if (!logStream.is_open()) {
+            std::cerr << "Failed to open log file: " << logFile << std::endl;
+        }
+    }
+
+    void log(const std::string& message, bool isError = false) {
+        auto& console = isError ? std::cerr : std::cout;
+        console << message << std::endl;
+
+        if (logStream.is_open()) {
+            auto now = std::chrono::system_clock::now();
+            auto time = std::chrono::system_clock::to_time_t(now);
+            struct tm timeinfo;
+            localtime_s(&timeinfo, &time);
+            char timestamp[26];
+            strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &timeinfo);
+
+            logStream << timestamp << (isError ? " ERROR: " : ": ") << message << std::endl;
+            logStream.flush();
+        }
+    }
+
     json GetCurrentDefaults() {
         try {
             return {
@@ -210,35 +232,42 @@ private:
     }
 
 public:
-    AudioMonitor(int interval = 5, bool f = false) : pollingInterval(interval), force(f) {
+    AudioMonitor(int interval = 5, bool f = false) 
+        : pollingInterval(interval), force(f) {
         SetProcessPriority();
         InitializePaths();
-        RotateLog();
+        InitializeLogFile();
+    }
+
+    ~AudioMonitor() {
+        if (logStream.is_open()) {
+            logStream.close();
+        }
     }
 
     void Start() {
-        std::cout << "Initializing audio device monitoring..." << std::endl;
+        log("Initializing audio device monitoring...");
 
         std::ifstream check(defaultsFile);
         if (!check.good() || force) {
-            std::cout << "Determining and saving default audio devices..." << std::endl;
+            log("Determining and saving default audio devices...");
             json currentDefaults = GetCurrentDefaults();
             if (currentDefaults.is_null()) {
-                std::cerr << "Failed to get initial defaults" << std::endl;
+                log("Failed to get initial defaults", true);
                 return;
             }
             SaveDefaultDevices(currentDefaults);
-            std::cout << "Saved defaults: " << savedDefaults.dump(4) << std::endl;
+            log("Saved defaults: " + savedDefaults.dump(4));
         }
         else {
-            std::cout << "Loading saved default audio devices..." << std::endl;
+            log("Loading saved default audio devices...");
             check.close();
             std::ifstream in(defaultsFile);
             in >> savedDefaults;
             in.close();
         }
 
-        std::cout << "Start monitoring audio devices..." << std::endl;
+        log("Start monitoring audio devices...");
 
         json deviceChecks = {
             {"Playback", {{"Default", true}, {"Communication", false}}},
@@ -259,8 +288,10 @@ public:
                     std::string device = it.key();
                     json checks = it.value();
                     if (current[device]["ID"] != savedDefaults[device]["ID"]) {
-                        std::cout << device << " device changed from '" << savedDefaults[device]["Name"]
-                            << "' to '" << current[device]["Name"] << "'. Restoring default..." << std::endl;
+                        std::stringstream msg;
+                        msg << device << " device changed from '" << savedDefaults[device]["Name"]
+                            << "' to '" << current[device]["Name"] << "'. Restoring default...";
+                        log(msg.str());
                         SetAudioDevice(savedDefaults[device]["ID"], checks["Default"], checks["Communication"]);
                     }
                 }
@@ -268,7 +299,7 @@ public:
                 std::this_thread::sleep_for(std::chrono::seconds(pollingInterval));
             }
             catch (const std::exception& e) {
-                std::cerr << "Error in main loop: " << e.what() << std::endl;
+                log(std::string("Error in main loop: ") + e.what(), true);
                 std::this_thread::sleep_for(std::chrono::seconds(1));
                 return;
             }
