@@ -323,7 +323,19 @@ public:
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\StaticAudioDevices_SingleInstance");
+    if (hMutex == NULL) {
+        MessageBoxA(NULL, "Failed to create mutex", "StaticAudioDevices Error", MB_ICONERROR);
+        return 1;
+    }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(hMutex);
+        return 0;
+    }
+
     AudioMonitor monitor;
     monitor.Start();
+
+    CloseHandle(hMutex);
     return 0;
 }
