@@ -212,6 +212,7 @@ private:
     json GetCurrentDefaults() {
         try {
             return {
+                {"Except", {}},
                 {"Interval", 3},
                 {"Playback", {{"ID", GetAudioDevice(true, false).ID}, {"Name", GetAudioDevice(true, false).Name}}},
                 {"PlaybackCommunication", {{"ID", GetAudioDevice(true, true).ID}, {"Name", GetAudioDevice(true, true).Name}}},
@@ -290,14 +291,26 @@ public:
                     std::string device = it.key();
                     json checks = it.value();
                     if (current[device]["ID"] != savedDefaults[device]["ID"]) {
-                        std::stringstream msg;
-                        msg << device << " device changed from '" << savedDefaults[device]["Name"]
-                            << "' to '" << current[device]["Name"] << "'. Restoring default...";
-                        log(msg.str());
-                        SetAudioDevice(savedDefaults[device]["ID"], checks["Default"], checks["Communication"]);
+                        bool isExcepted = false;
+                        if (savedDefaults.contains("Except") && savedDefaults["Except"].is_array()) {
+                            const std::string& currentName = current[device]["Name"];
+                            for (const auto& exceptName : savedDefaults["Except"]) {
+                                if (exceptName.is_string() && currentName == exceptName) {
+                                    isExcepted = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!isExcepted) {
+                            std::stringstream msg;
+                            msg << device << " device changed from '" << savedDefaults[device]["Name"]
+                                << "' to '" << current[device]["Name"] << "'. Restoring default...";
+                            log(msg.str());
+                            SetAudioDevice(savedDefaults[device]["ID"], checks["Default"], checks["Communication"]);
+                        }
                     }
                 }
-
                 std::this_thread::sleep_for(std::chrono::seconds(pollingInterval));
             }
             catch (const std::exception& e) {
