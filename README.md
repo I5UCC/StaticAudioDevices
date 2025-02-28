@@ -1,5 +1,9 @@
 # StaticAudioDevices
 
+[![Github All Releases](https://img.shields.io/github/downloads/i5ucc/StaticAudioDevices/total.svg)](https://github.com/I5UCC/StaticAudioDevices/releases/latest) 
+[![GitHub release (latest by date)](https://img.shields.io/github/downloads/i5ucc/StaticAudioDevices/latest/total?label=Latest%20version%20downloads)](https://github.com/I5UCC/StaticAudioDevices/releases/latest)
+<a href='https://ko-fi.com/i5ucc' target='_blank'><img height='35' style='border:0px;height:25px;' src='https://github.com/user-attachments/assets/8e34a7ee-641a-4bce-ab72-b6b647eb892d' border='0' alt='Buy Me a Coffee at ko-fi.com' />
+
 A Windows utility that monitors and maintains your default audio device settings.
 
 # Installation
